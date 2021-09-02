@@ -12,12 +12,12 @@ import os
 import signal
 import math
 from matplotlib import pyplot as plt
-
+from std_msgs.msg import Int32MultiArray
 # from numpy.lib.histograms import histogram
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
-
+import time
 from detect.Bump import BumpDetect
 from detect.TrafficLight import TrafficDetect
 from detect.StopLine import StopDetect
@@ -161,16 +161,99 @@ def waypoint(image):
     new_img = cv2.line(image,(c,460),(c,460),(255,255,0),5)
     
     # cv2.imshow('new_img', new_img)
-    return waypoints
+
+def ultra_call_back(data):
+    global ultra_msg
+    callback_time = time.time()
+    ultra_msg = data.data
+
+def Drive(image):
+    global c
+
+    #cv2.imshow('image',image)
+    lpos, rpos = -1,-1
+    for i in range(c,640):
+        if image[445][i][0] > 0:
+            rpos = i
+            break
+    for i in range(c,-1,-1):
+        if image[445][i][0] > 0:
+            lpos = i
+            break
+    
+    if lpos ==-1 or rpos == -1:
+        if rpos != -1:
+            lpos = rpos -130
+        elif lpos != -1:
+            rpos = lpos + 130
+        else:
+            lpos, rpos = 220,380
+    
+    if lpos < 230 and rpos > 370:
+        lpos = rpos - 100
+    
+    c = (rpos+lpos)//2
+    
+    new_img = cv2.line(image,(0,445),(640,445), (0,0,255), 2)
+    image.mean(axis=2)
+    
+    #480,640,3
+
+    steer = int((c -300)//2)
+    speed = 20
+    speed = 0
+
+    print(lpos,rpos)
+
+    motor_msg.angle = steer
+    motor_msg.speed = speed
+    pub.publish(motor_msg)
+    
+    new_img = cv2.line(image,(c,445),(c,445),(255,255,0),30)
+    new_img = cv2.line(image,(lpos,445),(lpos,445),(0,255,0),30)
+    new_img = cv2.line(image,(rpos,445),(rpos,445),(0,255,0),30)
+    
+    
+    
+    cv2.imshow('new_img', new_img)
+
+def ultra_get():
+    global ultra_msg
+    zeros = np.zeros((480,640,3),np.uint8)
+    # 초음파센서 데이터 출력
+    #print("ultra_msg:", ultra_msg)
+    side_right = ultra_msg[0]
+    side_left = ultra_msg[4]
+    rear_right = ultra_msg[7]
+    rear_center = ultra_msg[6]
+    rear_left = ultra_msg[5]
+
+    #time.sleep(0.5)
+    # 천천히 출력
+    # 다음에 그래픽 만들기
+    scale = 6
+    scale_sin60 = int(scale * 0.5)
+    scale_cos60 = int(scale  * 0.8)
+
+    ##640의 절반인 320이 카메라 가운데가 아니라 300
+    zeros = cv2.circle(zeros,(300-side_left*scale,10),6,(100,255,200),20)
+    zeros = cv2.circle(zeros,(300+side_right*scale,10),6,(100,255,200),20)
+    zeros = cv2.circle(zeros,(300+rear_right*scale_cos60,rear_right*scale_sin60),6,(100,255,200),20)
+    zeros = cv2.circle(zeros,(300-rear_left*scale_cos60,rear_left*scale_sin60),6,(100,255,200),20)
+    zeros = cv2.circle(zeros,(300,rear_center*scale),6,(100,255,200),20)
+    zeros = cv2.circle(zeros,(300,-50),500,(0,0,255),5)
+    #한계선
+    return zeros
+
 
 def main():
-    global image, cap, s
+    global image, cap, s, ultra_msg
 
     # state 0 : 정지선 검출 중
-    state_0 = True
+    state = 0
 
     # state 1 : 방지턱 검출 중
-    state_1 = False
+
 
     # 동영상으로 테스트인 경우, 실차에서는 제거
     # _, image = cap.read()
@@ -188,17 +271,17 @@ def main():
         # cv2.imshow('cali_img', cali_img)
         #print('gray',gray.shape)
 
-
+        ultra_msg = None
         # state_0 : 정지선
         # state_1 : 방지턱 검출
-        if state_0 == True and state_1 == False:
+        if state == 0:
             # 방지턱을 찾지 않을 떄는 정지선 검출
             stop_detect = StopDetect(cali_img)
             stop_detect.detect_stopline()
             if stop_detect.signal == True: # 정지선 검출
-                state_0 = False # 정지선 더 찾지 않음
-                state_1 = True # 방지턱 찾기 시작
-                print("stopline")
+                # 정지선 더 찾지 않음
+                # 방지턱 찾기 시작
+                print("stopline!!!!!!!!!!!!!")
                 # 정지선 정지 후 신호등 검출
                 # 신호등 이미지 받아오기
 
@@ -219,7 +302,8 @@ def main():
 
         # state_0 : 정지선
         # state_1 : 방지턱 검출
-        if state_0 == False and state_1 == True:
+
+        if state == 3:
             # 방지턱 검출
             bump_detect = BumpDetect(cali_img)
             bump_detect.bump_det()
@@ -246,7 +330,21 @@ def main():
       
         interface = lidar_visualizer(warped,left_sensor,right_sensor)
         #cv2.imshow('interface',interface)
-        waypoints = waypoint(warped)
+        Drive(warped)
+        
+        
+        
+        if ultra_msg == None:
+            print("no ultra_msg")
+            continue
+        interface_ultra = ultra_get()
+        
+        
+        concat = cv2.vconcat([interface, interface_ultra])
+        print("?")
+        cv2.imshow("final interface", concat)
+        
+        
         
         cv2.waitKey(1)
 
@@ -263,6 +361,9 @@ if __name__ == '__main__':
     lane_bin_th = 130
     calibrated = True
     s = []
+    c = 300
+    pub = rospy.Publisher('xycar_motor',xycar_motor)
+    motor_msg = xycar_motor()
     left_sensor = []
     right_sensor = []
     if calibrated:
@@ -279,6 +380,7 @@ if __name__ == '__main__':
     rospy.init_node('lane_detect')
     rospy.Subscriber("/usb_cam/image_raw", Image, img_callback)
     rospy.Subscriber("/scan", LaserScan, callback_Lidar, queue_size=1)
+    rospy.Subscriber('xycar_ultrasonic', Int32MultiArray, ultra_call_back)
 
     rate = rospy.Rate(30)
 

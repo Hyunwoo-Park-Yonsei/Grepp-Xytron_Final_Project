@@ -34,7 +34,7 @@ class StopDetect:
         #roi로 범위 자르기
         ##명도차로 검은색 점 1000개 이상이면 정지선이다.
         # print("stopline_cnt")
-        print(cnt_black)
+        print("cnt",cnt_black)
         if cnt_black > 29000:
             print("stop!")
             self.signal = True

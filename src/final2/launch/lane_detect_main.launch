@@ -33,7 +33,7 @@
     </node> -->
 
 
-    <node name="lane_detect" pkg="final" type="lane_detect.py" output="screen" />
+    <node name="lane_detect" pkg="final2" type="main.py" output="screen" />
       
   <include file="$(find xycar_motor)/launch/xycar_motor.launch" />
 </launch>
