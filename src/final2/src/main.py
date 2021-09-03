@@ -98,19 +98,30 @@ def signal_handler(sig, frame):
 
 def img_processing(img):
     img = calibrate_image(img)
-    blur = cv2.GaussianBlur(img,(5,5),0)
+    blur = cv2.GaussianBlur(img,(9,9),0)
     
     #cv2.imshow('raw',img)
 
 
-    LANE_MIN = np.array([20,5 , 55],np.uint8)
-    LANE_MAX = np.array([155, 105, 140],np.uint8)
 
-    hsv_img = cv2.cvtColor(blur,cv2.COLOR_BGR2HSV)
 
-    lane_img = cv2.inRange(hsv_img, LANE_MIN, LANE_MAX)
-    kernel = np.ones((5,5),np.uint8)
-    dila = cv2.dilate(lane_img,kernel)
+    #LANE_MIN = np.array([100//2-20,0 , 13*255//100-5],np.uint8)
+    #LANE_MAX = np.array([211//2+20, 255, 46*255//100+5],np.uint8)
+
+
+    #hsv_img = cv2.cvtColor(blur,cv2.COLOR_BGR2HSV)
+    low_threshold = 60
+    high_threshold = 70
+    edge_img = cv2.Canny(np.uint8(blur), low_threshold, high_threshold)
+    
+    
+
+    kernel = np.ones((4,4),np.uint8)
+    dila = cv2.dilate(edge_img,kernel)
+    
+    
+#    k = cv2.getStructuringElement(cv2.MORPH_RECT,(4,4))
+#    eros = cv2.erode(dila,k)
 
   
     #cv2.imshow('dila',dila)
@@ -136,31 +147,7 @@ def black2white(image):
     crop_img = image[200:450, 120:480]
     return crop_img
 
-def waypoint(image):
 
-    waypoints = []
-    # cv2.imshow('image',image)
-    lpos, rpos = -1,-1
-    for i in range(320,640):
-        if image[460][i][0] > 0:
-            rpos = i
-    for i in range(320,-1,-1):
-        if image[460][i][0] > 0:
-            lpos = i
-    
-    
-    new_img = cv2.line(image,(0,460),(640,460), (0,0,255), 2)
-    image.mean(axis=2)
-    
-    #480,640,3
-    c = (rpos+lpos)//2
-    steer = int(c -320)
-    speed = 15
-    
-    
-    new_img = cv2.line(image,(c,460),(c,460),(255,255,0),5)
-    
-    # cv2.imshow('new_img', new_img)
 
 def ultra_call_back(data):
     global ultra_msg
@@ -200,8 +187,8 @@ def Drive(image):
     #480,640,3
 
     steer = int((c -300)//2)
-    speed = 20
     speed = 0
+
 
     print(lpos,rpos)
 
@@ -215,7 +202,7 @@ def Drive(image):
     
     
     
-    cv2.imshow('new_img', new_img)
+    #cv2.imshow('new_img', new_img)
 
 def ultra_get():
     global ultra_msg
