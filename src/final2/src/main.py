@@ -174,23 +174,45 @@ def Drive(image):
         elif lpos != -1:
             rpos = lpos + 130
         else:
-            lpos, rpos = 220,380
+            for i in range(c,640):
+                if image[450][i][0] > 0:
+                    rpos = i
+                    break
+            else:
+                rpos = 640
+                
+            for i in range(c,-1,-1):
+                if image[450][i][0] > 0:
+                    lpos = i
+                    break
+            else:
+                lpos = 0
     
-    if lpos < 230 and rpos > 370:
-        lpos = rpos - 100
+
     
-    c = (rpos+lpos)//2
     
     new_img = cv2.line(image,(0,445),(640,445), (0,0,255), 2)
     image.mean(axis=2)
     
     #480,640,3
 
+    if rpos - lpos < 10:
+        lpos, rpos = 220, 380
+    
+    elif rpos -lpos < 100:
+        rpos = lpos + 130
+    
+    elif rpos - lpos > 600:
+        lpos, rpos = 350, 500
+    
+    
+    c = (rpos+lpos)//2
+    
     steer = int((c -300)//2)
-    speed = 0
+    speed = 15
+    
 
-
-    print(lpos,rpos)
+    
 
     motor_msg.angle = steer
     motor_msg.speed = speed
@@ -199,6 +221,8 @@ def Drive(image):
     new_img = cv2.line(image,(c,445),(c,445),(255,255,0),30)
     new_img = cv2.line(image,(lpos,445),(lpos,445),(0,255,0),30)
     new_img = cv2.line(image,(rpos,445),(rpos,445),(0,255,0),30)
+    
+    
     
     
     
@@ -237,7 +261,7 @@ def main():
     global image, cap, s, ultra_msg
 
     # state 0 : 정지선 검출 중
-    state = 0
+    state = -1
 
     # state 1 : 방지턱 검출 중
 
@@ -258,48 +282,10 @@ def main():
         # cv2.imshow('cali_img', cali_img)
         #print('gray',gray.shape)
 
-        ultra_msg = None
-        # state_0 : 정지선
-        # state_1 : 방지턱 검출
-        if state == 0:
-            # 방지턱을 찾지 않을 떄는 정지선 검출
-            stop_detect = StopDetect(cali_img)
-            stop_detect.detect_stopline()
-            if stop_detect.signal == True: # 정지선 검출
-                # 정지선 더 찾지 않음
-                # 방지턱 찾기 시작
-                print("stopline!!!!!!!!!!!!!")
-                # 정지선 정지 후 신호등 검출
-                # 신호등 이미지 받아오기
-
-                # 신호등 판별
-                # traffic_detect = TrafficDetect(cali_img)
-                # traffic_detect.traf_det()
-                # if traffic_detect.signal == "Red":
-                #     print("red")
-                # elif traffic_detect.signal == "Yellow":
-                #     print("yelow")
-                # elif traffic_detect.signal == "Green":
-                #     print("green")
-                # else:
-                #     pass
-
-            # else:
-            #     pass
-
+        #ultra_msg = None
         # state_0 : 정지선
         # state_1 : 방지턱 검출
 
-        if state == 3:
-            # 방지턱 검출
-            bump_detect = BumpDetect(cali_img)
-            bump_detect.bump_det()
-            if bump_detect.find == True: # 방지턱 검출
-                state_0 = True
-                state_1 = False
-                print("bump")
-            else:
-                pass
 
         
 
@@ -328,7 +314,6 @@ def main():
         
         
         concat = cv2.vconcat([interface, interface_ultra])
-        print("?")
         cv2.imshow("final interface", concat)
         
         
@@ -340,7 +325,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     image = np.empty(shape=[0])
     bridge = CvBridge()
-    pub = rospy.Publisher('xycar_motor',xycar_motor)
+    pub = rospy.Publisher('xycar_motor',xycar_motor, queue_size=1)
     Width = 640
     Height = 480
     Offset = 280
@@ -349,7 +334,7 @@ if __name__ == '__main__':
     calibrated = True
     s = []
     c = 300
-    pub = rospy.Publisher('xycar_motor',xycar_motor)
+    ultra_msg = None
     motor_msg = xycar_motor()
     left_sensor = []
     right_sensor = []
@@ -365,14 +350,12 @@ if __name__ == '__main__':
                         (Width, Height))
 
     rospy.init_node('lane_detect')
-    rospy.Subscriber("/usb_cam/image_raw", Image, img_callback)
+    rospy.Subscriber("/usb_cam/image_raw", Image, img_callback, queue_size=1)
     rospy.Subscriber("/scan", LaserScan, callback_Lidar, queue_size=1)
-    rospy.Subscriber('xycar_ultrasonic', Int32MultiArray, ultra_call_back)
+    rospy.Subscriber('xycar_ultrasonic', Int32MultiArray, ultra_call_back, queue_size=1)
 
     rate = rospy.Rate(30)
 
     while not rospy.is_shutdown():
         main()
         rate.sleep()
-
-
