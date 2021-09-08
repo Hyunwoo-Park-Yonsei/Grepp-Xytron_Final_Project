@@ -7,8 +7,7 @@ import cv2
 
 class ImageDetect:
 
-    def __init__(self, frame):
-        self.frame = frame
+    def __init__(self):
         self.imageCandidates = []
 
 
@@ -26,7 +25,7 @@ class ImageDetect:
         self.matcher = cv2.FlannBasedMatcher(index_params, search_params)
 
 
-        dir = os.path.dirname(os.path.abspath(__file__))
+        file_path = os.path.dirname(os.path.abspath(__file__))
         img_dir = os.path.join(file_path, './images')
         for img_file_name in os.listdir(img_dir):
             img_name = '.'.join(img_file_name.split('.')[0:-1])
@@ -36,15 +35,33 @@ class ImageDetect:
             self.imageCandidates.append((img_name, img, keypoints, descriptor))
 
 
-    def detectImage(self, x_len, start_y, offset_y):
-        img = cv2.imread('../images/yellow_cow.jpeg')
-        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
+    def detectImage(self, name):
         mats = {}
 
+        kp_2 = desc_2 = ''
+        for n, i, k, d in self.imageCandidates:
+            if n == name:
+                kp_2 = k
+                desc_2 = d
+
+        if len(kp_2) == 0 or len(desc_2) == 0:
+            print('invalid name')
+            return 1
+
+        ratio = 0.75
         for name_1, img_1, kp_1, desc_1 in self.imageCandidates:
-            matches = self.matcher.knnMatch(des1,des2,k=2)
-            mats[name_1] = len(matches)
+            matches = self.matcher.knnMatch(desc_1, desc_2, k=2)
+
+            good_matches= []
+            for m_n in matches:
+                if len(m_n) != 2:
+                    continue
+                (m,n) = m_n
+                if m.distance < 0.6*n.distance:
+                    good_matches.append(m)
+
+            # good_matches = [first for first,second in matches if first.distance < second.distance * ratio]
+            mats[name_1] = len(good_matches)
 
         # # Need to draw only good matches, so create a mask
         # matchesMask = [[0,0] for i in range(len(matches))]
