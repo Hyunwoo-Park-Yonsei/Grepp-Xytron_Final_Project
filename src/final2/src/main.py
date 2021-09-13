@@ -6,6 +6,9 @@ import os
 import signal
 
 import rospy, rospkg
+import numpy as np
+from SensorData import SensorData
+from SelfDriver import SelfDriver
 
 from xycar_msgs.msg import xycar_motor
 from sensor_msgs.msg import Image

@@ -10,7 +10,7 @@ from detect.Bump import BumpDetect
 from detect.TrafficLight import TrafficDetect
 from detect.StopLine import StopDetect
 
-from SensorState import SensorState
+# from SensorData import SensorData
 from helpers import *
 
 class SelfDriver:
@@ -29,19 +29,23 @@ class SelfDriver:
 
         # 참고: cv2.getOptimalNewCameraMatrix
         # https://docs.opencv.org/3.3.0/dc/dbb/tutorial_py_calibration.html
-        optimal_camera_matrix, optimal_camera_roi = cv2.getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, (Width, Height), 1, (Width, Height))
+        optimal_camera_matrix, optimal_camera_roi = cv2.getOptimalNewCameraMatrix(self.CAMERA_MATRIX, self.DISTORTION_COEFFS, (self.IMAGE_WIDTH, self.IMAGE_HEIGHT), 1, (self.IMAGE_WIDTH, self.IMAGE_HEIGHT))
         self.OPTIMAL_CAMERA_MATRIX = optimal_camera_matrix
         self.OPTIMAL_CAMERA_ROI = optimal_camera_roi
 
         # state definition
-        self.DrivingState = Enum("DrivingState", "none stop_line bump passenger")
-        self.driving_state = self.DrivingState.none
+        # self.DrivingState = Enum("DrivingState", "none stop_line bump passenger")
+        self.DRIVING_STATE_NONE = 0
+        self.DRIVING_STATE_STOP_LINE = 1
+        self.DRIVING_STATE_BUMP = 2
+        self.DRIVING_STATE_PASSENGER = 3
+        self.driving_state = self.DRIVING_STATE_NONE
 
         # member variables
         self.sensor_data = None
         self.display_board = None
         self.image_helper = ImageHelper()
-        self.lidar_helper = LidarHelper()
+        self.lidar_helper = LidarHelper.LidarHelper()
         self.ultra_helper = UltraHelper()
         self.last_center = 300
 
@@ -51,13 +55,16 @@ class SelfDriver:
         self.sensor_data = copy.deepcopy(sensor_data)
 
         # check correct image size
+        if self.sensor_data.image is None:
+            return 0, 0
         if not self.sensor_data.image.size == (640 * 480 * 3):
-            return
+            return 0, 0
 
-        image_dilated, image_undistorted = self.image_helper.img_processing(self.sensor_data.image)
+        image_size = (self.IMAGE_WIDTH, self.IMAGE_HEIGHT)
+        image_dilated, image_undistorted = self.image_helper.img_processing(self.sensor_data.image, self.CAMERA_MATRIX, self.DISTORTION_COEFFS, self.OPTIMAL_CAMERA_MATRIX, self.OPTIMAL_CAMERA_ROI, image_size, self.CANNY_THRESHOLD_LOW, self.CANNY_THRESHOLD_HIGH)
 
         # perspective tranform
-        Minv, warped = self.image_helper.warp_image(image_dilated)
+        Minv, warped = self.image_helper.warp_image(image_dilated, self.LANE_BIN_THRESHOLD)
         # cv2.imshow('warped2', warped)
         warped = cv2.cvtColor(warped,cv2.COLOR_GRAY2BGR)
 
@@ -68,7 +75,7 @@ class SelfDriver:
         else:
             print("no lidar_msg")
 
-        self.drive(warped)
+        steer, speed = self.drive(warped)
 
         # show ultra in display_board
         if self.sensor_data.ultra:
@@ -78,7 +85,7 @@ class SelfDriver:
         else:
             print("no ultra_msg")
 
-        pass
+        return steer, speed
 
 
     def drive(self, image):

@@ -2,36 +2,38 @@
 # -*- coding: utf-8 -*-
 
 import cv2
+import numpy as np
 
 class ImageHelper:
     def __init__(self):
         pass
 
-    def img_processing(self, image_raw):
-        image_undistorted = self.calibrate_image(image_raw)
-        image_gaussian_bluured = cv2.GaussianBlur(image_undistorted, (9,9), 0)
+    def img_processing(self, image_raw, camera_matrix, distortion_coeffs, optimal_camera_matrix, optimal_camera_roi, size, canny_threshold_low, canny_threshold_high):
 
-        image_edge = cv2.Canny(np.uint8(blur), self.CANNY_THRESHOLD_LOW, self.CANNY_THRESHOLD_HIGH)
+        image_undistorted = self.calibrate_image(image_raw, camera_matrix, distortion_coeffs, optimal_camera_matrix, optimal_camera_roi, size)
+        image_gaussian_blurred = cv2.GaussianBlur(image_undistorted, (9,9), 0)
+
+        image_edge = cv2.Canny(np.uint8(image_gaussian_blurred), canny_threshold_low, canny_threshold_high)
 
         kernel = np.ones((4,4), np.uint8)
         image_dilated = cv2.dilate(image_edge, kernel)
 
         return image_dilated, image_undistorted
 
-    def calibrate_image(self, frame):
+    def calibrate_image(self, frame, camera_matrix, distortion_coeffs, optimal_camera_matrix, optimal_camera_roi, size):
         """
         이미지 한장 읽을 때마다 위에서 구한 보정 행렬값을 적용하여 이미지를 반듯하게 수정하는 함수
         """
 
         #보정행렬값을 적용하여 반듯하게 수정하는 함수
-        tf_image = cv2.undistort(frame, self.CAMERA_MATRIX, self.DISTORTION_COEFFS, None, self.OPTIMAL_CAMERA_MATRIX)
-        x, y, w, h = self.OPTIMAL_CAMERA_ROI
+        tf_image = cv2.undistort(frame, camera_matrix, distortion_coeffs, None, optimal_camera_matrix)
+        x, y, w, h = optimal_camera_roi
         tf_image = tf_image[y:y+h, x:x+w]
 
         ##변환 전과 후의 4개 점 좌표를 전달해서 이미지를 원근 변환처리한다.
-        return cv2.resize(tf_image, (self.IMAGE_WIDTH, self.IMAGE_HEIGHT))
+        return cv2.resize(tf_image, size)
 
-    def warp_image(self, img):
+    def warp_image(self, img, lane_bin_threshold):
         #pts1 =np.float32([[228,290],[75,385],[423,290],[573,385]])
         #pts2 =np.float32([[228,290],[228,480],[423,290],[423,480]])
 
@@ -43,7 +45,7 @@ class ImageHelper:
 
         size = (640, 480)
         dst = cv2.warpPerspective(img, M, size, flags=cv2.INTER_LINEAR)
-        _, dst2 = cv2.threshold(dst, lane_bin_th, 255, cv2.THRESH_BINARY)
+        _, dst2 = cv2.threshold(dst, lane_bin_threshold, 255, cv2.THRESH_BINARY)
 
         ##자이카 카메라로 촬영한 동영상이므로 전용 보정값 써야햔다.
         return Minv, dst2

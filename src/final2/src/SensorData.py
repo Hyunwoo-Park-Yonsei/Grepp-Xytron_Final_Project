@@ -11,9 +11,9 @@ class SensorData:
     def __init__(self):
 
         # self.image = np.empty(shape=[0])
-        self.iamge = None
+        self.image = None
         self.ultra = None
-        slef.ranges = None
+        self.ranges = None
         self.ranges_left = None
         self.ranges_right = None
 

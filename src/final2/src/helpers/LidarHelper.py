@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import cv2
 import numpy as np
 
 class LidarHelper:
@@ -9,7 +10,7 @@ class LidarHelper:
         self.DEGREE_TO_LIDAR_RATIO = 1.4027
 
     def degree_to_lidar(self, degree):
-        return int(degree * self.DEGREE_TO_LIDAR_INDEX)
+        return int(degree * self.DEGREE_TO_LIDAR_RATIO)
 
     def lidar_to_degree(self, index):
         return (index / self.DEGREE_TO_LIDAR_RATIO) * np.pi / 180
