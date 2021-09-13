@@ -28,4 +28,4 @@ class SensorData:
         self.ranges_right = self.ranges[self.lidar_helper.degree_to_lidar(270.):]
 
     def ultra_callback(self, msg):
-        ultra = msg.data
+        self.ultra = msg.data

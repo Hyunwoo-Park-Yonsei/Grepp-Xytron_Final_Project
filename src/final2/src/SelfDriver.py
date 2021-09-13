@@ -152,7 +152,8 @@ class SelfDriver:
 
 
     def visualize(self):
-        if not self.display_board == None:
+
+        if self.display_board is not None:
             cv2.imshow("Sensor data display board", self.display_board)
 
         cv2.waitKey(1)
