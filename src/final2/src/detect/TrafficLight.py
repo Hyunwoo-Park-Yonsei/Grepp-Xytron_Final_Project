@@ -26,7 +26,7 @@ class TrafficDetect:
         #img = cv2.medianBlur(sign_roi,5)
         hsv = cv2.cvtColor(sign_roi, cv2.COLOR_BGR2HSV)
         h, s, v = cv2.split(hsv)
-        _, v = cv2.threshold(v, 230, 255, cv2.THRESH_BINARY)
+        _, v = cv2.threshold(v, 220, 255, cv2.THRESH_BINARY)
         cimg = cv2.cvtColor(v, cv2.COLOR_GRAY2BGR)    
         circles = cv2.HoughCircles(v, cv2.HOUGH_GRADIENT, 1, 20, param1=180, param2=10, minRadius=5, maxRadius=15)
         ##찾아진 서클을 하나하나씩 루프

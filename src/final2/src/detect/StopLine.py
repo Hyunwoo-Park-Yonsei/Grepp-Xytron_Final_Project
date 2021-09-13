@@ -13,6 +13,10 @@ class StopDetect:
         pass
 
     def setLabel(self, img, pts, label):
+        """
+        도형찾고 라벨링
+        """
+
         (x, y, w, h) = cv2.boundingRect(pts)
         pt1 = (x, y)
         pt2 = (x+w, y+h)

@@ -55,6 +55,7 @@ class SelfDriver:
         self.ultra_helper = UltraHelper()
         self.stop_detect = StopDetect()
         self.traffic_detect = TrafficDetect()
+        self.bump_detect = BumpDetect()
         self.last_center = 300
         self.count = 0
 
@@ -180,6 +181,10 @@ class SelfDriver:
         elif self.driving_state == 5 and self.sensor_data.ultra !=None:
             traf = self.traffic_detect.traf_det(image_undistorted)
             cv2.imshow("traf",traf)
+        ## bump 모드 state =6
+        elif self.driving_state == 6 and self.sensor_data.ultra !=None:
+            bump = self.bump_detect.bump_det(image_undistorted)
+            cv2.imshow("bump",bump)  
         ##나중에 지워야함
         elif self.driving_state == 2:
             img, stopline_detected = self.traffic_detect.stopline_det(image_undistorted)
