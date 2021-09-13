@@ -34,11 +34,17 @@ class SelfDriver:
         self.OPTIMAL_CAMERA_ROI = optimal_camera_roi
 
         # state definition
+        # 0 끼어들기
+        # 1 끼어들기 완료후 주행
+        # 5 신호등
         # self.DrivingState = Enum("DrivingState", "none stop_line bump passenger")
-        self.DRIVING_STATE_NONE = 0
-        self.DRIVING_STATE_STOP_LINE = 1
-        self.DRIVING_STATE_BUMP = 2
-        self.DRIVING_STATE_PASSENGER = 3
+        self.DRIVING_STATE_NONE = -1
+        self.DRIVING_STATE_JOINT = 0
+        self.DRIVING_STATE_NORMAL = 1
+        self.DRIVING_STATE_TRAFFIC_LIGHT = 5
+        self.DRIVING_STATE_STOP_LINE = 7
+        self.DRIVING_STATE_BUMP = 8
+        self.DRIVING_STATE_PASSENGER = 9
         self.driving_state = self.DRIVING_STATE_NONE
 
         # member variables
@@ -47,7 +53,10 @@ class SelfDriver:
         self.image_helper = ImageHelper()
         self.lidar_helper = LidarHelper.LidarHelper()
         self.ultra_helper = UltraHelper()
+        self.stop_detect = StopDetect()
+        self.traffic_detect = TrafficDetect()
         self.last_center = 300
+        self.count = 0
 
     def get_next_direction(self, sensor_data):
 
@@ -75,7 +84,7 @@ class SelfDriver:
         else:
             print("no lidar_msg")
 
-        steer, speed = self.drive(warped)
+        steer, speed = self.drive(warped, image_undistorted)
 
         # show ultra in display_board
         if self.sensor_data.ultra:
@@ -88,7 +97,7 @@ class SelfDriver:
         return steer, speed
 
 
-    def drive(self, image):
+    def drive(self, image, image_undistorted):
         #cv2.imshow("image",image)
         lpos, rpos = -1, -1
         for i in range(self.last_center, 640):
@@ -135,6 +144,58 @@ class SelfDriver:
         elif rpos - lpos > 600:
             lpos, rpos = 350, 500
 
+        #########
+        if self.driving_state == 0:
+            llpos = -1
+            for i in range(lpos - 50,-1,-1):
+                if image[200][i][0] > 0:
+                    llpos = i
+                    break
+            print("llpos", llpos)
+            if 130>lpos - llpos >110 and llpos != -1 and self.count > 10:
+                rpos = lpos
+                lpos = llpos
+                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                self.driving_state = 1
+                self.count = 0
+        elif self.driving_state == 1 and self.sensor_data.ultra != None:
+            print("ultra message")
+            print(self.sensor_data.ultra[4], self.sensor_data.ultra[5])
+            img, stopline_detected = self.stop_detect.stopline_det(image_undistorted)
+            cv2.imshwo("trrf",traf)
+            cv2.imshow("img", img)
+            if stopline_detected:
+                motor_msg.speed = 0
+                motor_msg.angle = 0
+                pub.publish(motor_msg)
+                #time.sleep(5)
+                #state = 2
+                print("stop line detected")
+            if self.sensor_data.ultra[4] <40 or self.sensor_data.ultra[5] < 40 and self.count > 10:
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                lpos, rpos = 330,480
+                self.driving_state = 0
+                self.count = 0
+        ## 신호등 모드 state = 5
+        elif self.driving_state == 5 and self.sensor_data.ultra !=None:
+            traf = self.traffic_detect.traf_det(image_undistorted)
+            cv2.imshow("traf",traf)
+        ##나중에 지워야함
+        elif self.driving_state == 2:
+            img, stopline_detected = self.traffic_detect.stopline_det(image_undistorted)
+            cv2.imshow("img", img)
+            if stopline_detected:
+                motor_msg.speed = 0
+                motor_msg.angle = 0
+                pub.publish(motor_msg)
+                time.sleep(3)
+                self.driving_state = 3
+                print("stop line detected")
+#        print("state",state)
+#        print(lpos,rpos)
+#        print(rpos-lpos)
+#        print(" ")
+        #############
 
         self.last_center = (rpos+lpos) // 2
         steer = int((self.last_center-300) // 2)
@@ -148,6 +209,7 @@ class SelfDriver:
         # new_img = cv2.line(image,(lpos,445),(lpos,445),(0,255,0),30)
         # new_img = cv2.line(image,(rpos,445),(rpos,445),(0,255,0),30)
 
+        self.count += 1
         return steer, speed
 
 
