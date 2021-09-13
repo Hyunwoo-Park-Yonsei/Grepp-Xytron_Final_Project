@@ -99,13 +99,14 @@ def set_roi_color_traf(frame, x_len, start_y, offset_y):
     start_x = int(width/2 - (x_len/2))
     end_x = int(width -start_x)
     return frame[start_y:start_y+offset_y, start_x:end_x], start_x, start_y
+
 ##신호등 구분
 def traf_det(image):
     sign_roi,_,_ = set_roi_color_traf(image,200,80,100)
     #img = cv2.medianBlur(sign_roi,5)
     hsv = cv2.cvtColor(sign_roi, cv2.COLOR_BGR2HSV)
     h, s, v = cv2.split(hsv)
-    _,v = cv2.threshold(v, 230,255,cv2.THRESH_BINARY)
+    _,v = cv2.threshold(v, 220,255,cv2.THRESH_BINARY)
     cimg = cv2.cvtColor(v,cv2.COLOR_GRAY2BGR)    
     circles = cv2.HoughCircles(v, cv2.HOUGH_GRADIENT, 1,20, param1=180, param2=10, minRadius=5, maxRadius=15)
     ##찾아진 서클을 하나하나씩 루프
@@ -135,14 +136,7 @@ def traf_det(image):
     except AttributeError:
         pass
     return cimg
-# 검게 보이는 부분 하얗게 날리기
-def setLabel(img,pts, label):
-    (x,y,w,h) = cv2.boundingRect(pts)
-    pt1 =(x,y)
-    pt2 = (x+w,y+h)
-    cv2.rectangle(img,pt1,pt2,(0,255,0),2)
-    cv2.putText(img,label,(pt1[0],pt1[1]-3), cv2.FONT_HERSHEY_SIMPLEX, 0.7,(0,0,255))
-    return img
+
 def set_roi_color_stop(frame, x_len, start_y, offset_y):
     _,width,_ =  frame.shape
     #컬러 전용은 shape에서 리턴3개 나온다.  흑백은 리턴2개 나옴. 
@@ -180,6 +174,44 @@ def stopline_det(image):
                 detected = True
             print ("contours   ")
     return img, detected
+    ##도형찾고 라벨링 
+def setLabel(img,pts, label):
+    (x,y,w,h) = cv2.boundingRect(pts)
+    pt1 = (x,y)
+    pt2 = (x+w, y+h)
+    cv2.rectangle(img,pt1,pt2,(0,255,0),2)
+    cv2.putText(img,label,(pt1[0],pt1[1]-3), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255))
+
+def set_roi_color_bump(frame, x_len, start_y, offset_y):
+    _,width,_ =  frame.shape
+    #컬러 전용은 shape에서 리턴3개 나온다.  흑백은 리턴2개 나옴. 
+    start_x = int(width/2 - (x_len/2))
+    end_x = int(width -start_x)
+    return frame[start_y:start_y+offset_y, start_x-50:end_x-50], start_x, start_y
+## 방지턱 인식하기 
+def bump_det(image) :
+    sign_roi,_,_ = set_roi_color_bump(image,250,230,80)
+    H,L,S = cv2.split(cv2.cvtColor(sign_roi,cv2.COLOR_BGR2HLS))
+    
+    _,L = cv2.threshold(L,200,255, cv2.THRESH_BINARY)
+    #print (L)
+
+    ##침식할 때 필요한 구조화 요소 커널 사각형 클수록 더 침식 잘됨.
+    k = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
+    # 사각형 5x5
+    eros = cv2.erode(L,k)
+    
+
+    _,contours,_ = cv2.findContours(eros, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    
+    for cont in contours:
+        approx = cv2.approxPolyDP(cont, cv2.arcLength(cont,True) *0.02, True)
+        vtc = len(approx)
+        if vtc ==6:
+            setLabel(sign_roi, cont, 'bump')
+            print "bump"
+    return sign_roi
+
 def ultra_call_back(data):
     global ultra_msg
     callback_time = time.time()
@@ -258,6 +290,10 @@ def Drive(image, cali_img):
     elif state == 5 and ultra_msg !=None:
         traf = traf_det(cali_img)
         cv2.imshow("traf",traf)
+    ## bump 모드 state =6
+    elif state == 6 and ultra_msg !=None:
+        bump = bump_det(cali_img)
+        cv2.imshow("bump",bump)    
     ##나중에 지워야함
     elif state == 2:
         img, stopline_detected = stopline_det(cali_img)
@@ -276,7 +312,7 @@ def Drive(image, cali_img):
     print(" ")
     c = (rpos+lpos)//2
     steer = int((c -300)//2)
-    speed = 15
+    speed = 0
     motor_msg.angle = steer
     motor_msg.speed = speed
     pub.publish(motor_msg)
@@ -318,7 +354,8 @@ def main():
     # 1 끼어들기 완료후 주행
     # 2 정지선 이후
     # 5 신호등
-    state = 5
+    # 6 bump
+    state = 6
     # 동영상으로 테스트인 경우, 실차에서는 제거
     # _, image = cap.read()
     # 사진으로 테스트
