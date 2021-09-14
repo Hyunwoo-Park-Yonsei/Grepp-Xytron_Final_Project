@@ -252,7 +252,7 @@ class SelfDriver:
                 min_dist = dist
                 min_index = i
 
-        return i
+        return min_index
          
 
     def visualize(self):
