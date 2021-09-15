@@ -5,11 +5,15 @@ import numpy as np
 import os
 import cv2
 
-class ImageDetect:
+class PassengerDetect:
 
     def __init__(self):
-        self.imageCandidates = []
 
+
+        self.MAN = "man"
+        self.CAT = "cat"
+
+        self.image_candidates = {}
 
         # ORB detector
         # https://bkshin.tistory.com/entry/OpenCV-27-%ED%8A%B9%EC%A7%95-%EB%94%94%EC%8A%A4%ED%81%AC%EB%A6%BD%ED%84%B0-%EA%B2%80%EC%B6%9C%EA%B8%B0-SIFT-SURF-ORB
@@ -32,36 +36,54 @@ class ImageDetect:
             img_path = os.path.join(img_dir, img_file_name)
             img = cv2.imread(img_path)
             keypoints, descriptor = self.detector.detectAndCompute(img, None)
-            self.imageCandidates.append((img_name, img, keypoints, descriptor))
+            self.image_candidates[img_name]((img, keypoints, descriptor))
 
+    def find_man(self, cam_image):
+        cam_kp, cam_desc = self.detector.detectAndCompute(cam_image, None)
+        _, _, man_desc = self.image_candidates[self.MAN]
+        similarity = self.compare_image(cam_desc, man_desc)
 
-    def detectImage(self, name):
-        mats = {}
+        return similarity
 
-        kp_2 = desc_2 = ''
-        for n, i, k, d in self.imageCandidates:
-            if n == name:
-                kp_2 = k
-                desc_2 = d
+    def find_cat(self, cam_image):
+        cam_kp, cam_desc = self.detector.detectAndCompute(cam_image, None)
+        _, _, man_desc = self.image_candidates[self.CAT]
+        similarity = self.compare_image(cam_desc, man_desc)
 
-        if len(kp_2) == 0 or len(desc_2) == 0:
-            print('invalid name')
-            return 1
+        return similarity
 
-        ratio = 0.75
-        for name_1, img_1, kp_1, desc_1 in self.imageCandidates:
-            matches = self.matcher.knnMatch(desc_1, desc_2, k=2)
+    def compare_image(self, desc_1, desc_2):
+        # mats = {}
 
-            good_matches= []
-            for m_n in matches:
-                if len(m_n) != 2:
-                    continue
-                (m,n) = m_n
-                if m.distance < 0.6*n.distance:
-                    good_matches.append(m)
+        # kp_2 = desc_2 = ''
+        # for n, i, k, d in self.image_candidates:
+        #     if n == name:
+        #         kp_2 = k
+        #         desc_2 = d
 
-            # good_matches = [first for first,second in matches if first.distance < second.distance * ratio]
-            mats[name_1] = len(good_matches)
+        # if len(kp_2) == 0 or len(desc_2) == 0:
+        #     print('invalid name')
+        #     return 1
+
+        # ratio = 0.75
+        # for name_1, img_1, kp_1, desc_1 in self.image_candidates:
+        similarity = 0
+
+        matches = self.matcher.knnMatch(desc_1, desc_2, k=2)
+
+        good_matches = []
+        for m_n in matches:
+            if len(m_n) != 2:
+                continue
+            (m, n) = m_n
+            if m.distance < 0.6*n.distance:
+                good_matches.append(m)
+
+        similarity = len(good_matches)
+        return similarity
+
+        # good_matches = [first for first,second in matches if first.distance < second.distance * ratio]
+        # mats[name_1] = len(good_matches)
 
         # # Need to draw only good matches, so create a mask
         # matchesMask = [[0,0] for i in range(len(matches))]
@@ -75,4 +97,4 @@ class ImageDetect:
         #                    matchesMask = matchesMask,
         #                    flags = cv.DrawMatchesFlags_DEFAULT)
 
-        return mats
+        # return mats
