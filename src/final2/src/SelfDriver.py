@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import copy
+import pickle
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
@@ -71,10 +73,24 @@ class SelfDriver:
         self.lidar_front = 100
         self.cnt_right = 0
 
+        pkl_file_name = "2021-09-14-pose_2-sampled-300.pkl"
+        absolute_path = os.path.abspath(__file__)
+        file_directory = os.path.dirname(absolute_path)
+        pkl_file = os.path.join(file_directory, "../utils", pkl_file_name)
+
+        with open(pkl_file, "rb") as f:
+            self.path = pickle.load(f)
+
     def get_next_direction(self, sensor_data):
 
         # copy sensor deeply to make them synchronized throughout this function
         self.sensor_data = copy.deepcopy(sensor_data)
+
+        if self.sensor_data.pose is not None:
+            x = self.sensor_data.pose.position.x
+            y = self.sensor_data.pose.position.y
+            nearest_point_index = self.nearest_path_point(x, y)
+            print("{}: ({}, {})".format(nearest_point_index, self.path["x"][nearest_point_index], self.path["y"][nearest_point_index]))
 
         # check correct image size
         if self.sensor_data.image is None:
@@ -353,6 +369,27 @@ class SelfDriver:
         self.count += 1
         return steer, speed
 
+    def nearest_path_point(self, x, y):
+
+        min_dist = 1e9
+        min_index = 0
+        n_points = len(self.path["x"])
+
+#        front_x = x + L * np.cos(yaw)
+#        front_y = y + L * np.sin(yaw)
+
+        for i in range(n_points):
+            # calculating distance (map_xs, map_ys) - (front_x, front_y)
+            dx = x - self.path["x"][i]
+            dy = y - self.path["y"][i]
+            dist = np.hypot(dx, dy)
+
+            if dist < min_dist:
+                min_dist = dist
+                min_index = i
+
+        return min_index
+         
 
     def visualize(self):
 

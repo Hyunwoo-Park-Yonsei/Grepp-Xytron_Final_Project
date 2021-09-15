@@ -13,6 +13,7 @@ class SensorData:
         # self.image = np.empty(shape=[0])
         self.image = None
         self.ultra = None
+        self.pose = None
         self.ranges = None
         self.ranges_left = None
         self.ranges_right = None
@@ -34,3 +35,6 @@ class SensorData:
 
     def ar_callback(self, msg):
         self.ar = msg.markers
+
+    def pose_callback(self, msg):
+        self.pose = msg.pose
