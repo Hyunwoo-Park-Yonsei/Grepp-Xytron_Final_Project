@@ -46,6 +46,6 @@ class BumpDetect:
             vtc = len(approx)
             if vtc ==6:
                 self.setLabel(sign_roi, cont, 'bump')
-                print "bump"
-        return sign_roi
+                return True
+        return False
     

@@ -33,9 +33,7 @@ class StopDetect:
 
     def stopline_det(self, image):
         detected = False
-        cont_min= 300
-        cont_max = 0
-        cont_width = 0
+ 
         sign_roi, _, _ = self.set_roi_color_stop(image,350,280,80)
         gray = cv2.cvtColor(sign_roi, cv2.COLOR_BGR2GRAY)
         gray = 255- gray
@@ -48,17 +46,37 @@ class StopDetect:
         for cont in contours:
             approx = cv2.approxPolyDP(cont, cv2.arcLength(cont,True) *0.02, True)
             vtc = len(approx)
+            cont_xmin= 300
+            cont_xmax = 0
+            cont_xwidth = 0
+            cont_ymin= 300
+            cont_ymax = 0
+            cont_ywidth = 0 
             if vtc == 2:
                 for j in cont:
+                  
+                                
+                    
                     i = j[0][0]
-                    if cont_max < i:
-                        cont_max = i
-                    if cont_min > i:
-                        cont_min = i
-                print("cont width" , cont_max - cont_min)
-                cont_width = cont_max -cont_min
-                if cont_width > 150:
+                    k = j[0][1]                    
+                                        
+                    if cont_xmax < i:
+                        cont_xmax = i
+                    if cont_xmin > i:
+                        cont_xmin = i
+                    if cont_ymax < k:
+                        cont_ymax = k
+                    if cont_ymin > k:
+                        cont_ymin = k    
+                                                                    
+
+                cont_xwidth = cont_xmax -cont_xmin
+                cont_ywidth = cont_ymax - cont_ymin
+                print()                
+                print("x, y width", cont_xwidth,cont_ywidth)                                
+                print()
+                if cont_xwidth > 179 and cont_ywidth < 50:
+                    print("x, y width", cont_xwidth,cont_ywidth)                
                     img = self.setLabel(sign_roi, cont, 'stopline')
                     detected = True
-                print ("contours   ")
         return img, detected

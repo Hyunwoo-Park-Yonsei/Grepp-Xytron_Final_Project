@@ -25,8 +25,8 @@ class SelfDriver:
         self.LANE_BIN_THRESHOLD = config.get("lane_bin_threshold")
         self.CAMERA_MATRIX = config.get("camera_matrix")
         self.DISTORTION_COEFFS = config.get("distortion_coeffs")
-        self.CANNY_THRESHOLD_LOW = config.get("canny_threshold_low", 60)
-        self.CANNY_THRESHOLD_HIGH = config.get("canny_threshold_high", 70)
+        self.CANNY_THRESHOLD_LOW = config.get("canny_threshold_low", 80)
+        self.CANNY_THRESHOLD_HIGH = config.get("canny_threshold_high", 90)
 
         # 참고: cv2.getOptimalNewCameraMatrix
         # https://docs.opencv.org/3.3.0/dc/dbb/tutorial_py_calibration.html
@@ -49,7 +49,7 @@ class SelfDriver:
         self.DRIVING_STATE_ARPARKING = 10
         
         
-        self.driving_state = self.DRIVING_STATE_ARPARKING
+        self.driving_state = 8
 
 
 
@@ -68,6 +68,8 @@ class SelfDriver:
         self.arNum = -1
         self.dist = -1
         self.start_time = 0
+        self.lidar_front = 100
+        self.cnt_right = 0
 
     def get_next_direction(self, sensor_data):
 
@@ -92,6 +94,7 @@ class SelfDriver:
         if self.sensor_data.ranges:
             display_lidar = self.lidar_helper.lidar_visualizer(warped, self.sensor_data.ranges_left, self.sensor_data.ranges_right)
             self.display_board = display_lidar
+            self.lidar_front = self.lidar_helper.lidar_front(self.sensor_data.ranges)
         else:
             print("no lidar_msg")
             
@@ -158,7 +161,7 @@ class SelfDriver:
             rpos = lpos + 130
 
         elif rpos - lpos > 600:
-            lpos, rpos = 350, 500
+            lpos, rpos = 350, 520
 
         #########
         if self.driving_state == 0:
@@ -173,44 +176,27 @@ class SelfDriver:
                 lpos = llpos
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
                 self.driving_state = 1
+                self.start_time = time.time()
                 self.count = 0
         elif self.driving_state == 1 and self.sensor_data.ultra != None:
             print("ultra message")
             print(self.sensor_data.ultra[4], self.sensor_data.ultra[5])
-            img, stopline_detected = self.stop_detect.stopline_det(image_undistorted)
-            cv2.imshwo("trrf",traf)
-            cv2.imshow("img", img)
-            if stopline_detected:
-                motor_msg.speed = 0
-                motor_msg.angle = 0
-                pub.publish(motor_msg)
-                #time.sleep(5)
-                #state = 2
-                print("stop line detected")
+
+          
             if self.sensor_data.ultra[4] <40 or self.sensor_data.ultra[5] < 40 and self.count > 10:
                 print("!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 lpos, rpos = 330,480
                 self.driving_state = 0
                 self.count = 0
-        ## 신호등 모드 state = 5
-        elif self.driving_state == 5 and self.sensor_data.ultra !=None:
-            traf = self.traffic_detect.traf_det(image_undistorted)
-            cv2.imshow("traf",traf)
-        ## bump 모드 state =6
-        elif self.driving_state == 6 and self.sensor_data.ultra !=None:
-            bump = self.bump_detect.bump_det(image_undistorted)
-            cv2.imshow("bump",bump)  
+            if time.time() - start_time >15:
+                self.driving_state = 2
+
+
+
+
+ 
         ##나중에 지워야함
-        elif self.driving_state == 2:
-            img, stopline_detected = self.traffic_detect.stopline_det(image_undistorted)
-            cv2.imshow("img", img)
-            if stopline_detected:
-                motor_msg.speed = 0
-                motor_msg.angle = 0
-                pub.publish(motor_msg)
-                time.sleep(3)
-                self.driving_state = 3
-                print("stop line detected")
+
 #        print("state",state)
 #        print(lpos,rpos)
 #        print(rpos-lpos)
@@ -220,46 +206,113 @@ class SelfDriver:
         self.last_center = (rpos+lpos) // 2
         steer = int((self.last_center-300) // 2)
         speed = 15
+        
 
-        # motor_msg.angle = steer
-        # motor_msg.speed = speed
-        # pub.publish(motor_msg)
+        if self.driving_state == 2:
+            #img, stopline_detected = self.stop_detect.stopline_det(image_undistorted)
+            #cv2.imshow("img",img)
+            #if stopline_detected:
+                #angle = 0
+                #speed = 0
+                #print("stop line detected")
+            traffic_sign = self.traffic_detect.traf_det(image_undistorted)
+            if not traffic_sign:
+                img, stopline_detected = self.stop_detect.stopline_det(image_undistorted)
+                if stopline_detected:
+                    angle = 0
+                    speed = 0
+                    print("stop line detected")
+                    
+            else:
+                self.driving_state = 4
+                self.start_time = time.time()
+                
+                
+                
+#        elif self.driving_state ==3:
+#            if time.time()-self.start_time < 3:
+#                speed = 15
+#                angle = 0
+#            elif time.time()-self.start_time < 6:
+#                speed = 15
+#                angle = 50
+#            else:
+#                self.driving_state = 4
 
-        # new_img = cv2.line(image,(c,445),(c,445),(255,255,0),30)
-        # new_img = cv2.line(image,(lpos,445),(lpos,445),(0,255,0),30)
-        # new_img = cv2.line(image,(rpos,445),(rpos,445),(0,255,0),30)
 
-        if self.arNum == 0 and self.dist < 0.6 and self.driving_state == 10:
-            print("Should change the state")
-            self.driving_state = 11
+
+
+        if self.arNum == 0 and self.dist < 0.6 and self.driving_state == 4:
+
+            self.driving_state = 5
             self.start_time = time.time()
-        elif self.driving_state == 11:
+        elif self.driving_state == 5:
             t = 2.5
             if time.time() - self.start_time < t:
                 speed = 15
                 steer = 50
-            elif time.time() - self.start_time < 2*t:
+            elif time.time() - self.start_time < t + 1:
+                speed = 0
+                steeer = 0
+            elif time.time() - self.start_time < 1.8*t + 1:
                 speed = -20
                 steer = -50
-            elif time.time() - self.start_time < 7/2.5 * t:
+            elif time.time() - self.start_time < 2.3* t + 1:
                 speed = -20
                 steer = 50
             else:
-                self.driving_state = 12
-                self.start_time = time.time()
-        elif self.driving_state == 12:
+                if self.dist > 0.8:
+                    self.driving_state = 6
+                    self.start_time = time.time()
+                else:
+                    speed = -20
+                    steer = 0
+        elif self.driving_state == 6:
             speed = 0
             steer = 0
-            if 6> time.time() - self.start_time > 3:
+            if 4 > time.time() - self.start_time > 3:
+                speed = 15
+                steer = -20
+            elif 8> time.time() - self.start_time > 4:
                 speed = 15
                 steer = -40
-            elif time.time() - self.start_time > 6:
-                self.driving_state = 13
+            elif time.time() - self.start_time > 8:
+                self.driving_state = 7
+                self.last_center = 300
         
-        elif self.driving_state == 13:
-            speed = 0
-            steer = 0
+        elif self.driving_state == 7:
+
             print("it is yolo state")
+
+        elif self.driving_state == 8:
+        
+            bump = self.bump_detect.bump_det(image_undistorted)
+            if bump:
+                self.driving_state = 9
+
+        
+        
+        elif self.driving_state == 9:
+            speed = 20
+            steer = -2
+            if self.lidar_front < 2.2:
+                self.driving_state = 10
+                self.start_time = time.time()
+        elif self.driving_state == 10:
+            speed = 0
+            steer = -2
+            self.cnt_right += len([x for x in self.sensor_data.ranges_right if 0 < x < 0.5])
+            if self.cnt_right > 10 and time.time() - self.start_time > 2:
+                self.driving_state = 11
+                self.start_time = time.time()
+                self.last_center = 300
+                
+        elif self.driving_state == 11:
+            speed = 15
+            if time.time() - self.start_time < 3:
+                steer =20
+            
+            
             
             
         elif self.driving_state == 15 and self.sensor_data.ultra != None:
@@ -291,8 +344,9 @@ class SelfDriver:
             steer = 0
             
 
-
-
+        self.display_board = cv2.line(self.display_board,(self.last_center,445),(self.last_center,445),(255,0,0),30)
+        self.display_board = cv2.line(self.display_board,(lpos,445),(lpos,445),(0,255,0),30)
+        self.display_board = cv2.line(self.display_board,(rpos,445),(rpos,445),(0,255,0),30)
 
 
 

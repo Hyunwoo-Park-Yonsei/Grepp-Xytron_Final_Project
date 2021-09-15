@@ -29,3 +29,18 @@ class LidarHelper:
             display_lidar = cv2.line(display_lidar, point, point, (255,0,0), 10)
 
         return display_lidar
+
+    def lidar_front(self, sensors):
+        total = 0
+        count = 0
+        for i in range(8):
+            if sensors[i] != 0:
+                count +=1
+                total += sensors[i]
+            if sensors[-i] != 0:
+                count ==1
+                total += sensors[i]
+        try:
+            return total/count
+        except:
+            return 100
