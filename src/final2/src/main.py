@@ -14,6 +14,7 @@ from xycar_msgs.msg import xycar_motor
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Int32MultiArray
+from ar_track_alvar_msgs.msg import AlvarMarkers
 
 def signal_handler(sig, frame):
     os.system("killall -9 python rosout")
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     rospy.Subscriber("/usb_cam/image_raw", Image, sensor_data.image_callback, queue_size=1)
     rospy.Subscriber("/scan", LaserScan, sensor_data.lidar_callback, queue_size=1)
     rospy.Subscriber("xycar_ultrasonic", Int32MultiArray, sensor_data.ultra_callback, queue_size=1)
-
+    rospy.Subscriber('ar_pose_marker', AlvarMarkers, sensor_data.ar_callback,queue_size = 1)
     rate = rospy.Rate(30)
     while not rospy.is_shutdown():
         # main()
@@ -57,6 +58,6 @@ if __name__ == "__main__":
 
         pub.publish(motor_msg)
 
-        # driver.visualize()
+        driver.visualize()
 
         rate.sleep()

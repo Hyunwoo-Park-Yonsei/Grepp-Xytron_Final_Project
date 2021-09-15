@@ -5,6 +5,7 @@ import copy
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
+import time
 
 from detect.Bump import BumpDetect
 from detect.TrafficLight import TrafficDetect
@@ -45,7 +46,12 @@ class SelfDriver:
         self.DRIVING_STATE_STOP_LINE = 7
         self.DRIVING_STATE_BUMP = 8
         self.DRIVING_STATE_PASSENGER = 9
-        self.driving_state = self.DRIVING_STATE_NONE
+        self.DRIVING_STATE_ARPARKING = 10
+        
+        
+        self.driving_state = self.DRIVING_STATE_ARPARKING
+
+
 
         # member variables
         self.sensor_data = None
@@ -53,11 +59,15 @@ class SelfDriver:
         self.image_helper = ImageHelper()
         self.lidar_helper = LidarHelper.LidarHelper()
         self.ultra_helper = UltraHelper()
+        self.ar_helper = ArHelper()
         self.stop_detect = StopDetect()
         self.traffic_detect = TrafficDetect()
         self.bump_detect = BumpDetect()
         self.last_center = 300
         self.count = 0
+        self.arNum = -1
+        self.dist = -1
+        self.start_time = 0
 
     def get_next_direction(self, sensor_data):
 
@@ -84,6 +94,10 @@ class SelfDriver:
             self.display_board = display_lidar
         else:
             print("no lidar_msg")
+            
+        if self.sensor_data.ar:
+            self.arNum, self.dist = self.ar_helper.ArData(self.sensor_data.ar)
+            print("arNum", self.arNum, "dist", self.dist)
 
         steer, speed = self.drive(warped, image_undistorted)
 
@@ -100,6 +114,7 @@ class SelfDriver:
 
     def drive(self, image, image_undistorted):
         #cv2.imshow("image",image)
+        print("state", self.driving_state)
         lpos, rpos = -1, -1
         for i in range(self.last_center, 640):
             if image[445][i][0] > 0:
@@ -213,6 +228,73 @@ class SelfDriver:
         # new_img = cv2.line(image,(c,445),(c,445),(255,255,0),30)
         # new_img = cv2.line(image,(lpos,445),(lpos,445),(0,255,0),30)
         # new_img = cv2.line(image,(rpos,445),(rpos,445),(0,255,0),30)
+
+        if self.arNum == 0 and self.dist < 0.6 and self.driving_state == 10:
+            print("Should change the state")
+            self.driving_state = 11
+            self.start_time = time.time()
+        elif self.driving_state == 11:
+            t = 2.5
+            if time.time() - self.start_time < t:
+                speed = 15
+                steer = 50
+            elif time.time() - self.start_time < 2*t:
+                speed = -20
+                steer = -50
+            elif time.time() - self.start_time < 7/2.5 * t:
+                speed = -20
+                steer = 50
+            else:
+                self.driving_state = 12
+                self.start_time = time.time()
+        elif self.driving_state == 12:
+            speed = 0
+            steer = 0
+            if 6> time.time() - self.start_time > 3:
+                speed = 15
+                steer = -40
+            elif time.time() - self.start_time > 6:
+                self.driving_state = 13
+        
+        elif self.driving_state == 13:
+            speed = 0
+            steer = 0
+            print("it is yolo state")
+            
+            
+        elif self.driving_state == 15 and self.sensor_data.ultra != None:
+            if self.sensor_data.ultra[0] > 50:
+                self.parallel_count += 1
+            elif self.sensor_data.ultra[0] > 20:
+                self.parallel_count = 0
+            if self.parallel_count > 4:
+                self.driving_state = 16
+                self.start_time = time.time()
+                
+        elif self.driving_state == 16:
+            if time.time() - self.start_time < 3.5:
+                speed = 15
+                steer = 0
+            elif time.time() - self.start_time < 5:
+                speed =-20
+                steer = 50
+            elif time.time() - self.start_time < 6:
+                speed = -20
+                steer = 0    
+            elif time.time() - self.start_time < 7.5:
+                speed = -20
+                steer = -50     
+            else:
+                self.driving_state = 17            
+        elif self.driving_state == 17:
+            speed = 0
+            steer = 0
+            
+
+
+
+
+
 
         self.count += 1
         return steer, speed

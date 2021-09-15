@@ -16,6 +16,7 @@ class SensorData:
         self.ranges = None
         self.ranges_left = None
         self.ranges_right = None
+        self.ar = None
 
         self.lidar_helper = LidarHelper()
 
@@ -29,3 +30,6 @@ class SensorData:
 
     def ultra_callback(self, msg):
         self.ultra = msg.data
+
+    def ar_callback(self, msg):
+        self.ar = msg.markers
