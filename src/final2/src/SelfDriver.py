@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import copy
+import time
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
@@ -9,6 +10,7 @@ from matplotlib import pyplot as plt
 from detect.Bump import BumpDetect
 from detect.TrafficLight import TrafficDetect
 from detect.StopLine import StopDetect
+from detect.PassengerDetect import PassengerDetect
 
 # from SensorData import SensorData
 from helpers import *
@@ -56,8 +58,11 @@ class SelfDriver:
         self.stop_detect = StopDetect()
         self.traffic_detect = TrafficDetect()
         self.bump_detect = BumpDetect()
+        self.passenger_detect = PassengerDetect()
         self.last_center = 300
         self.count = 0
+
+        self.last_time = time.time()
 
     def get_next_direction(self, sensor_data):
 
@@ -72,6 +77,18 @@ class SelfDriver:
 
         image_size = (self.IMAGE_WIDTH, self.IMAGE_HEIGHT)
         image_dilated, image_undistorted = self.image_helper.img_processing(self.sensor_data.image, self.CAMERA_MATRIX, self.DISTORTION_COEFFS, self.OPTIMAL_CAMERA_MATRIX, self.OPTIMAL_CAMERA_ROI, image_size, self.CANNY_THRESHOLD_LOW, self.CANNY_THRESHOLD_HIGH)
+
+        ##########
+        sim_man = self.passenger_detect.find_man(image_undistorted)
+        sim_cat = self.passenger_detect.find_cat(image_undistorted)
+
+        now = time.time()
+        delta_time = now - self.last_time
+        # print("man: {}, cat: {}, fps: {}".format(sim_man, sim_cat, 1/delta_time))
+        self.last_time = now
+
+        return 0, 0
+        ##########
 
         # perspective tranform
         Minv, warped = self.image_helper.warp_image(image_dilated, self.LANE_BIN_THRESHOLD)

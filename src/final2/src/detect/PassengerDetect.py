@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*-coding:utf-8-*-
 
+import time
 import numpy as np
 import os
 import cv2
@@ -12,12 +13,13 @@ class PassengerDetect:
 
         self.MAN = "man"
         self.CAT = "cat"
+        self.last_time = time.time()
 
         self.image_candidates = {}
 
         # ORB detector
         # https://bkshin.tistory.com/entry/OpenCV-27-%ED%8A%B9%EC%A7%95-%EB%94%94%EC%8A%A4%ED%81%AC%EB%A6%BD%ED%84%B0-%EA%B2%80%EC%B6%9C%EA%B8%B0-SIFT-SURF-ORB
-        self.detector = cv2.ORB_create()
+        self.detector = cv2.ORB_create(nfeatures=500, patchSize=10)
         # detector = cv2.ORB_create(nfeatures, scaleFactor, nlevels, edgeThreshold, firstLevel, WTA_K, scoreType, patchSize, fastThreshold)
 
 
@@ -36,14 +38,29 @@ class PassengerDetect:
             img_path = os.path.join(img_dir, img_file_name)
             img = cv2.imread(img_path)
             keypoints, descriptor = self.detector.detectAndCompute(img, None)
-            self.image_candidates[img_name]((img, keypoints, descriptor))
+            self.image_candidates[img_name] = (img, keypoints, descriptor)
 
     def find_man(self, cam_image):
         cam_kp, cam_desc = self.detector.detectAndCompute(cam_image, None)
-        _, _, man_desc = self.image_candidates[self.MAN]
-        similarity = self.compare_image(cam_desc, man_desc)
+        man_img, man_kp, man_desc = self.image_candidates[self.MAN]
+        matches, matchesMask = self.compare_image(cam_desc, man_desc)
 
-        return similarity
+        now = time.time()
+        delta_time = now - self.last_time
+        if delta_time > 1:
+            draw_params = dict(matchColor = (0,255,0),
+                   singlePointColor = (255,0,0),
+                   matchesMask = matchesMask,
+                   flags = cv2.DrawMatchesFlags_DEFAULT)
+
+            img3 = cv2.drawMatchesKnn(cam_image, cam_kp, man_img, man_kp, matches, None, **draw_params)
+            path = "/home/nvidia/Grepp-Xytron_Final_Project/src/final2/src/detect"
+            cv2.imwrite(path + "/images/{}.jpg".format(now), img3)
+            print('image saved')
+            self.last_time = now
+
+        # return similarity
+        return 
 
     def find_cat(self, cam_image):
         cam_kp, cam_desc = self.detector.detectAndCompute(cam_image, None)
@@ -65,22 +82,28 @@ class PassengerDetect:
         #     print('invalid name')
         #     return 1
 
-        # ratio = 0.75
+        ratio = 0.70
         # for name_1, img_1, kp_1, desc_1 in self.image_candidates:
         similarity = 0
 
         matches = self.matcher.knnMatch(desc_1, desc_2, k=2)
 
-        good_matches = []
-        for m_n in matches:
+        # Need to draw only good matches, so create a mask
+        matchesMask = [[0,0] for i in range(len(matches))]
+
+        # good_matches = []
+        for i, m_n in enumerate(matches):
             if len(m_n) != 2:
                 continue
             (m, n) = m_n
-            if m.distance < 0.6*n.distance:
-                good_matches.append(m)
+            if m.distance < ratio * n.distance:
+                matchesMask[i] = [1, 0]
 
-        similarity = len(good_matches)
-        return similarity
+        # similarity = len(good_matches)
+
+
+
+        return matches, matchesMask
 
         # good_matches = [first for first,second in matches if first.distance < second.distance * ratio]
         # mats[name_1] = len(good_matches)
