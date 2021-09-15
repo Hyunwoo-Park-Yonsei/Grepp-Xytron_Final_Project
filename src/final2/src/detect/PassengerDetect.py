@@ -19,7 +19,8 @@ class PassengerDetect:
 
         # ORB detector
         # https://bkshin.tistory.com/entry/OpenCV-27-%ED%8A%B9%EC%A7%95-%EB%94%94%EC%8A%A4%ED%81%AC%EB%A6%BD%ED%84%B0-%EA%B2%80%EC%B6%9C%EA%B8%B0-SIFT-SURF-ORB
-        self.detector = cv2.ORB_create(nfeatures=500, patchSize=10)
+        #  self.detector = cv2.ORB_create(nfeatures=2000, patchSize=31)
+        self.detector = cv2.ORB_create()
         # detector = cv2.ORB_create(nfeatures, scaleFactor, nlevels, edgeThreshold, firstLevel, WTA_K, scoreType, patchSize, fastThreshold)
 
 
@@ -31,29 +32,47 @@ class PassengerDetect:
         self.matcher = cv2.FlannBasedMatcher(index_params, search_params)
 
 
+        # BFMatcher
+        self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+
         file_path = os.path.dirname(os.path.abspath(__file__))
         img_dir = os.path.join(file_path, './images')
         for img_file_name in os.listdir(img_dir):
             img_name = '.'.join(img_file_name.split('.')[0:-1])
             img_path = os.path.join(img_dir, img_file_name)
             img = cv2.imread(img_path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             keypoints, descriptor = self.detector.detectAndCompute(img, None)
             self.image_candidates[img_name] = (img, keypoints, descriptor)
 
     def find_man(self, cam_image):
+        # 감마
+        g = 1.1
+        out = cam_image.copy()
+        out = out.astype(np.float)
+        out = ((out / 255) ** (1 / g)) * 255
+        out = out.astype(np.uint8)
+        cam_image = out
+
+        cam_image = cv2.cvtColor(cam_image, cv2.COLOR_BGR2GRAY)
+
         cam_kp, cam_desc = self.detector.detectAndCompute(cam_image, None)
         man_img, man_kp, man_desc = self.image_candidates[self.MAN]
-        matches, matchesMask = self.compare_image(cam_desc, man_desc)
+        #matches, matchesMask = self.compare_image(cam_desc, man_desc)
+        matches, good_matches = self.compare_image(cam_desc, man_desc)
 
         now = time.time()
         delta_time = now - self.last_time
-        if delta_time > 1:
-            draw_params = dict(matchColor = (0,255,0),
-                   singlePointColor = (255,0,0),
-                   matchesMask = matchesMask,
-                   flags = cv2.DrawMatchesFlags_DEFAULT)
+        if delta_time > 0.2:
 
-            img3 = cv2.drawMatchesKnn(cam_image, cam_kp, man_img, man_kp, matches, None, **draw_params)
+#            draw_params = dict(matchColor = (-1,-1,-1),
+#                   singlePointColor = (255,0,0),
+#                   #matchesMask = matchesMask,
+#                   flags = cv2.DrawMatchesFlags_DEFAULT)
+#
+#            img3 = cv2.drawMatchesKnn(cam_image, cam_kp, man_img, man_kp, matches, None, **draw_params)
+            img3 = cv2.drawMatches(cam_image, cam_kp, man_img, man_kp, good_matches, None, flags=cv2.DRAW_MATCHES_FLAGS_NOT_DRAW_SINGLE_POINTS)
             path = "/home/nvidia/Grepp-Xytron_Final_Project/src/final2/src/detect"
             cv2.imwrite(path + "/images/{}.jpg".format(now), img3)
             print('image saved')
@@ -70,26 +89,42 @@ class PassengerDetect:
         return similarity
 
     def compare_image(self, desc_1, desc_2):
-        # mats = {}
+        # Match descriptors.
+        matches = self.bf.match(desc_1, desc_2)
 
-        # kp_2 = desc_2 = ''
-        # for n, i, k, d in self.image_candidates:
-        #     if n == name:
-        #         kp_2 = k
-        #         desc_2 = d
+        # Sort them in the order of their distance.
+        matches = sorted(matches, key = lambda x: x.distance)
 
-        # if len(kp_2) == 0 or len(desc_2) == 0:
-        #     print('invalid name')
-        #     return 1
+        
+        min_dist, max_dist = matches[0].distance, matches[-1].distance
+        ratio = 0.1
+        good_thresh = (max_dist - min_dist) * ratio + min_dist
+        good_matches = [m for m in matches if m.distance < good_thresh]
 
-        ratio = 0.70
-        # for name_1, img_1, kp_1, desc_1 in self.image_candidates:
-        similarity = 0
+        print("matches: {}/{}({}), min: {}, max: {}, thresh: {}".format(len(good_matches), len(matches), float(len(good_matches))/len(matches),  min_dist, max_dist, good_thresh))
 
-        matches = self.matcher.knnMatch(desc_1, desc_2, k=2)
+        return matches, good_matches
 
-        # Need to draw only good matches, so create a mask
-        matchesMask = [[0,0] for i in range(len(matches))]
+
+
+
+#        matches = self.matcher.knnMatch(desc_1, desc_2, k=2)
+#
+#        # Need to draw only good matches, so create a mask
+#        # matchesMask = [[0,0] for i in range(len(matches))]
+#
+#        ratio = 0.75
+#        good_matches = []
+#        for i, m_n in enumerate(matches):
+#            if len(m_n) != 2:
+#                continue
+#            (m, n) = m_n
+#            if m.distance < ratio * n.distance:
+#                good_matches
+#
+#        print("matches: {}/{}({})".format(len(good_matches), len(matches), float(len(good_matches))/len(matches)))
+#
+#        return matches, good_matches
 
         # good_matches = []
         for i, m_n in enumerate(matches):
