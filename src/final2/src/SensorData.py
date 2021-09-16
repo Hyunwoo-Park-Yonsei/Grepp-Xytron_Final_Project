@@ -40,5 +40,5 @@ class SensorData:
     def pose_callback(self, msg):
         self.pose = msg.pose
 
-    def yolo_callback(data):
-        boxes = data.bounding_boxes
+    def yolo_callback(self, data):
+        self.yolo_boxes = data.bounding_boxes

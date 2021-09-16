@@ -86,7 +86,7 @@ class SelfDriver:
         # copy sensor deeply to make them synchronized throughout this function
         self.sensor_data = copy.deepcopy(sensor_data)
 
-        if self.sensor_data.bounding_boxes is not None:
+        if self.sensor_data.yolo_boxes is not None:
             cats = self.find_cats()
             people = self.find_people()
 
@@ -398,15 +398,15 @@ class SelfDriver:
         return min_index
 
     ###### Yolo
-    def find_people():
+    def find_people(self):
         return self.find_yolo("person")
 
-    def find_cats():
+    def find_cats(self):
         return self.find_yolo("cat")
 
-    def find_yolo(class):
-        boxes = self.sensor_data.bounding_boxes
-        ret = [box for box in boxes if box.Class == class]
+    def find_yolo(self, class_name):
+        boxes = self.sensor_data.yolo_boxes
+        ret = [box for box in boxes if box.Class == class_name]
 
         return ret
         # for i in range(len(boxes)):
