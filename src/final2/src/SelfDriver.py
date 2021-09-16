@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import time
 import copy
 import pickle
 import cv2
@@ -49,9 +50,9 @@ class SelfDriver:
         self.DRIVING_STATE_BUMP = 8
         self.DRIVING_STATE_PASSENGER = 9
         self.DRIVING_STATE_ARPARKING = 10
-        
-        
-        self.driving_state = 8
+
+
+        self.driving_state = 0
 
 
 
@@ -72,6 +73,12 @@ class SelfDriver:
         self.start_time = 0
         self.lidar_front = 100
         self.cnt_right = 0
+        self.last_time = time.time()
+
+        self.yolo_stop_time = 0
+        self.yolo_state = 0
+        self.cat_detect_history = []
+        self.people_detect_history = []
 
         pkl_file_name = "2021-09-14-pose_2-sampled-300.pkl"
         absolute_path = os.path.abspath(__file__)
@@ -86,11 +93,11 @@ class SelfDriver:
         # copy sensor deeply to make them synchronized throughout this function
         self.sensor_data = copy.deepcopy(sensor_data)
 
-        if self.sensor_data.pose is not None:
-            x = self.sensor_data.pose.position.x
-            y = self.sensor_data.pose.position.y
-            nearest_point_index = self.nearest_path_point(x, y)
-            print("{}: ({}, {})".format(nearest_point_index, self.path["x"][nearest_point_index], self.path["y"][nearest_point_index]))
+#        if self.sensor_data.pose is not None:
+#            x = self.sensor_data.pose.position.x
+#            y = self.sensor_data.pose.position.y
+#            nearest_point_index = self.nearest_path_point(x, y)
+#            print("{}: ({}, {})".format(nearest_point_index, self.path["x"][nearest_point_index], self.path["y"][nearest_point_index]))
 
         # check correct image size
         if self.sensor_data.image is None:
@@ -113,7 +120,7 @@ class SelfDriver:
             self.lidar_front = self.lidar_helper.lidar_front(self.sensor_data.ranges)
         else:
             print("no lidar_msg")
-            
+
         if self.sensor_data.ar:
             self.arNum, self.dist = self.ar_helper.ArData(self.sensor_data.ar)
             print("arNum", self.arNum, "dist", self.dist)
@@ -198,7 +205,7 @@ class SelfDriver:
             print("ultra message")
             print(self.sensor_data.ultra[4], self.sensor_data.ultra[5])
 
-          
+
             if self.sensor_data.ultra[4] <40 or self.sensor_data.ultra[5] < 40 and self.count > 10:
                 print("!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 lpos, rpos = 330,480
@@ -210,7 +217,7 @@ class SelfDriver:
 
 
 
- 
+
         ##나중에 지워야함
 
 #        print("state",state)
@@ -222,7 +229,7 @@ class SelfDriver:
         self.last_center = (rpos+lpos) // 2
         steer = int((self.last_center-300) // 2)
         speed = 15
-        
+
 
         if self.driving_state == 2:
             #img, stopline_detected = self.stop_detect.stopline_det(image_undistorted)
@@ -238,13 +245,13 @@ class SelfDriver:
                     angle = 0
                     speed = 0
                     print("stop line detected")
-                    
+
             else:
                 self.driving_state = 4
                 self.start_time = time.time()
-                
-                
-                
+
+
+
 #        elif self.driving_state ==3:
 #            if time.time()-self.start_time < 3:
 #                speed = 15
@@ -295,19 +302,102 @@ class SelfDriver:
             elif time.time() - self.start_time > 8:
                 self.driving_state = 7
                 self.last_center = 300
-        
-        elif self.driving_state == 7:
 
-            print("it is yolo state")
+        elif self.driving_state == 7:
+            # print("it is yolo state")
+
+            if self.sensor_data.yolo_boxes is None:
+                speed = 0
+
+            else:
+                len_history = 3
+                # detect num of cats and num of people
+                cats = len(self.find_cats())
+                people = len(self.find_people())
+
+                # insert detection result to history
+                self.cat_detect_history.append(cats)
+                self.cat_detect_history = self.cat_detect_history[-len_history:]
+
+                self.people_detect_history.append(people)
+                self.people_detect_history = self.people_detect_history[-len_history:]
+
+                print(self.yolo_state)
+                print(self.people_detect_history)
+
+                if self.yolo_state == 0:
+                    # 최근 3번의 yolo detection 결과가 모두 1개 이상일 때,
+                    # 오브젝트가 확실히 있다고 판단
+                    # 남자를 찾을 때까지 차선 주행
+                    people_detected = filter(lambda x: x>0, self.people_detect_history)
+                    if len(people_detected) == len_history:
+                        self.yolo_state = 1
+            
+                elif self.yolo_state == 1:
+                    # 최근 3번의 yolo detection 결과가 모두 0일 때,
+                    # 오브젝트가 확실히 없다고 판단
+                    # 정지 타이머 초기화
+                    # print(self.people_detect_history)
+                    people_detected = filter(lambda x: x>0, self.people_detect_history)
+                    if len(people_detected) == 0:
+                        self.yolo_stop_time = time.time()
+                        self.yolo_state = 2
+                        speed = 0
+
+                elif self.yolo_state == 2:
+                    # 1초간 정지
+                    now = time.time()
+                    delta_time = now - self.yolo_stop_time
+                    if delta_time < 1:
+                        speed = 0
+                    else:
+                        self.yolo_state = 3
+
+                elif self.yolo_state == 3:
+                    # 최근 3번의 yolo detection 결과가 모두 1개 이상일 때,
+                    # 오브젝트가 확실히 있다고 판단
+                    # 고양이를 찾을 때까지 차선 주행
+                    cat_detected = filter(lambda x: x>0, self.cat_detect_history)
+                    if len(cat_detected) == 3:
+                        self.yolo_state = 4
+
+                elif self.yolo_state == 4:
+                    # 최근 3번의 yolo detection 결과가 모두 0일 때,
+                    # 오브젝트가 확실히 없다고 판단
+                    # 정지 타이머 초기화
+                    cat_detected = filter(lambda x: x>0, self.cat_detect_history)
+                    if len(cat_detected) == 0:
+                        self.yolo_stop_time = time.time()
+                        self.yolo_state = 5
+                        speed = 0
+
+                elif self.yolo_state == 5:
+                    # 1초간 정지
+                    now = time.time()
+                    delta_time = now - self.yolo_stop_time
+                    if delta_time < 1:
+                        speed = 0
+                    else:
+                        self.yolo_state = 6
+
+                elif self.yolo_state == 6:
+                    # yolo_state 6 --> complete taxi mission
+                    # s자 구간 통과까지 slam으로 위치 파악 및 bump detection state로 전환
+                    x = self.sensor_data.pose.position.x
+                    y = self.sensor_data.pose.position.y
+                    nearest_point_index = self.nearest_path_point(x, y)
+                    if 197 > nearest_point_index > 192:
+                        self.driving_state = 8
+
 
         elif self.driving_state == 8:
-        
+
             bump = self.bump_detect.bump_det(image_undistorted)
             if bump:
                 self.driving_state = 9
 
-        
-        
+
+
         elif self.driving_state == 9:
             speed = 20
             steer = -2
@@ -322,15 +412,15 @@ class SelfDriver:
                 self.driving_state = 11
                 self.start_time = time.time()
                 self.last_center = 300
-                
+
         elif self.driving_state == 11:
             speed = 15
             if time.time() - self.start_time < 3:
                 steer =20
-            
-            
-            
-            
+
+
+
+
         elif self.driving_state == 15 and self.sensor_data.ultra != None:
             if self.sensor_data.ultra[0] > 50:
                 self.parallel_count += 1
@@ -339,7 +429,7 @@ class SelfDriver:
             if self.parallel_count > 4:
                 self.driving_state = 16
                 self.start_time = time.time()
-                
+
         elif self.driving_state == 16:
             if time.time() - self.start_time < 3.5:
                 speed = 15
@@ -349,16 +439,16 @@ class SelfDriver:
                 steer = 50
             elif time.time() - self.start_time < 6:
                 speed = -20
-                steer = 0    
+                steer = 0
             elif time.time() - self.start_time < 7.5:
                 speed = -20
-                steer = -50     
+                steer = -50
             else:
-                self.driving_state = 17            
+                self.driving_state = 17
         elif self.driving_state == 17:
             speed = 0
             steer = 0
-            
+
 
         self.display_board = cv2.line(self.display_board,(self.last_center,445),(self.last_center,445),(255,0,0),30)
         self.display_board = cv2.line(self.display_board,(lpos,445),(lpos,445),(0,255,0),30)
@@ -389,7 +479,28 @@ class SelfDriver:
                 min_index = i
 
         return min_index
-         
+
+    ###### Yolo
+    def find_people(self):
+        return self.find_yolo("person")
+
+    def find_cats(self):
+        return self.find_yolo("cat")
+
+    def find_yolo(self, class_name):
+        boxes = self.sensor_data.yolo_boxes
+        ret = [box for box in boxes if box.Class == class_name]
+
+        return ret
+        # for i in range(len(boxes)):
+        #     if
+        #   yolo_data = [-1,-1,-1,-1]
+        #   area = (boxes[i].xmax - boxes[i].xmin) * (boxes[i].ymax - boxes[i].ymin)
+        #   #print(boxes[i].Class)
+        #   if boxes[i].Class == "pottedplant" :
+        #       yolo_data = ["pottedplant",boxes[i].xmin, boxes[i].xmax,area]
+    ######
+
 
     def visualize(self):
 
