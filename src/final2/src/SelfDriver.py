@@ -452,17 +452,22 @@ class SelfDriver:
 					now = time.time()
 					time_delta = now - self.parallel_parking_last_time
 
-					if time_delta < 1.5:
+					if time_delta < 3.5:
+						# go straight
+						speed = 15
+						steer = 0
+
+					if time_delta < 5:
 						# drive to the right back
 						speed = -20
 						steer = 50
 
-					elif time_delta < 2.5:
+					elif time_delta < 6:
 						# drive straight back
 						speed = -20
 						steer = 0
 
-					elif time_delta < 4:
+					elif time_delta < 7.5:
 						# drive to the left back
 						speed = -20
 						steer = -50
