@@ -49,8 +49,8 @@ class SelfDriver:
         self.DRIVING_STATE_BUMP = 8
         self.DRIVING_STATE_PASSENGER = 9
         self.DRIVING_STATE_ARPARKING = 10
-        
-        
+
+
         self.driving_state = 8
 
 
@@ -86,6 +86,13 @@ class SelfDriver:
         # copy sensor deeply to make them synchronized throughout this function
         self.sensor_data = copy.deepcopy(sensor_data)
 
+        if self.sensor_data.bounding_boxes is not None:
+            cats = self.find_cats()
+            people = self.find_people()
+
+            print("cats: {}, people: {}".format(len(cats), len(people)))
+            return 0, 0
+
         if self.sensor_data.pose is not None:
             x = self.sensor_data.pose.position.x
             y = self.sensor_data.pose.position.y
@@ -113,7 +120,7 @@ class SelfDriver:
             self.lidar_front = self.lidar_helper.lidar_front(self.sensor_data.ranges)
         else:
             print("no lidar_msg")
-            
+
         if self.sensor_data.ar:
             self.arNum, self.dist = self.ar_helper.ArData(self.sensor_data.ar)
             print("arNum", self.arNum, "dist", self.dist)
@@ -198,7 +205,7 @@ class SelfDriver:
             print("ultra message")
             print(self.sensor_data.ultra[4], self.sensor_data.ultra[5])
 
-          
+
             if self.sensor_data.ultra[4] <40 or self.sensor_data.ultra[5] < 40 and self.count > 10:
                 print("!!!!!!!!!!!!!!!!!!!!!!!!!!")
                 lpos, rpos = 330,480
@@ -210,7 +217,7 @@ class SelfDriver:
 
 
 
- 
+
         ##나중에 지워야함
 
 #        print("state",state)
@@ -222,7 +229,7 @@ class SelfDriver:
         self.last_center = (rpos+lpos) // 2
         steer = int((self.last_center-300) // 2)
         speed = 15
-        
+
 
         if self.driving_state == 2:
             #img, stopline_detected = self.stop_detect.stopline_det(image_undistorted)
@@ -238,13 +245,13 @@ class SelfDriver:
                     angle = 0
                     speed = 0
                     print("stop line detected")
-                    
+
             else:
                 self.driving_state = 4
                 self.start_time = time.time()
-                
-                
-                
+
+
+
 #        elif self.driving_state ==3:
 #            if time.time()-self.start_time < 3:
 #                speed = 15
@@ -295,19 +302,19 @@ class SelfDriver:
             elif time.time() - self.start_time > 8:
                 self.driving_state = 7
                 self.last_center = 300
-        
+
         elif self.driving_state == 7:
 
             print("it is yolo state")
 
         elif self.driving_state == 8:
-        
+
             bump = self.bump_detect.bump_det(image_undistorted)
             if bump:
                 self.driving_state = 9
 
-        
-        
+
+
         elif self.driving_state == 9:
             speed = 20
             steer = -2
@@ -322,15 +329,15 @@ class SelfDriver:
                 self.driving_state = 11
                 self.start_time = time.time()
                 self.last_center = 300
-                
+
         elif self.driving_state == 11:
             speed = 15
             if time.time() - self.start_time < 3:
                 steer =20
-            
-            
-            
-            
+
+
+
+
         elif self.driving_state == 15 and self.sensor_data.ultra != None:
             if self.sensor_data.ultra[0] > 50:
                 self.parallel_count += 1
@@ -339,7 +346,7 @@ class SelfDriver:
             if self.parallel_count > 4:
                 self.driving_state = 16
                 self.start_time = time.time()
-                
+
         elif self.driving_state == 16:
             if time.time() - self.start_time < 3.5:
                 speed = 15
@@ -349,16 +356,16 @@ class SelfDriver:
                 steer = 50
             elif time.time() - self.start_time < 6:
                 speed = -20
-                steer = 0    
+                steer = 0
             elif time.time() - self.start_time < 7.5:
                 speed = -20
-                steer = -50     
+                steer = -50
             else:
-                self.driving_state = 17            
+                self.driving_state = 17
         elif self.driving_state == 17:
             speed = 0
             steer = 0
-            
+
 
         self.display_board = cv2.line(self.display_board,(self.last_center,445),(self.last_center,445),(255,0,0),30)
         self.display_board = cv2.line(self.display_board,(lpos,445),(lpos,445),(0,255,0),30)
@@ -389,7 +396,28 @@ class SelfDriver:
                 min_index = i
 
         return min_index
-         
+
+    ###### Yolo
+    def find_people():
+        return self.find_yolo("person")
+
+    def find_cats():
+        return self.find_yolo("cat")
+
+    def find_yolo(class):
+        boxes = self.sensor_data.bounding_boxes
+        ret = [box for box in boxes if box.Class == class]
+
+        return ret
+        # for i in range(len(boxes)):
+        #     if
+        #   yolo_data = [-1,-1,-1,-1]
+        #   area = (boxes[i].xmax - boxes[i].xmin) * (boxes[i].ymax - boxes[i].ymin)
+        #   #print(boxes[i].Class)
+        #   if boxes[i].Class == "pottedplant" :
+        #       yolo_data = ["pottedplant",boxes[i].xmin, boxes[i].xmax,area]
+    ######
+
 
     def visualize(self):
 
