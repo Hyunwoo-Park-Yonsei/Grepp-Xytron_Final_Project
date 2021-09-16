@@ -436,6 +436,7 @@ class SelfDriver:
 				self.parallel_distance_right_history = self.parallel_distance_right_history[-len_history:]
 
 				rights_over_50 = filter(lambda x: x>50, self.parallel_distance_right_history)
+				print("rights history: {}".format(self.parallel_distance_right_history))
 
                 if self.parallel_parking_state == 0:
 					# if recent every five right distance values are all over 50 cm 
