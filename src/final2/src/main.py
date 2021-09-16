@@ -66,6 +66,6 @@ if __name__ == "__main__":
 
         pub.publish(motor_msg)
 
-        driver.visualize()
+        # driver.visualize()
 
         rate.sleep()

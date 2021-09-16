@@ -1,4 +1,7 @@
 <launch>
+  	
+  <param name="robot_description" textfile="$(find final2)/urdf/xycar.urdf" />
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
 
   <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" respawn="false" output="screen" >
     <param name="video_device" value="/dev/video0" />
@@ -58,8 +61,19 @@
     <param name="config_path"           value="$(arg yolo_config_path)" />
     <remap from="/camera/rgb/image_raw" to="/usb_cam/image_raw"/>
   </node>
+  
+  
+  <!-- cartographer -->
+  <node name="cartographer_node" pkg="cartographer_ros" type="cartographer_node" args="
+    -configuration_directory $(find final2)/config
+    -configuration_basename localization.lua
+    -minloglevel 2
+    -load_state_filename $(find final2)/maps/09011351.pbstream" />
+  <node name="cartographer_occupancy_grid_node" pkg="cartographer_ros" type="cartographer_occupancy_grid_node" args="-resolution 0.05" />
+  
+  <include file="$(find xycar_motor)/launch/xycar_motor.launch" />
 
 
   <node name="lane_detect" pkg="final2" type="main.py" output="screen" />
-  <include file="$(find xycar_motor)/launch/xycar_motor.launch" />
+  
 </launch>
