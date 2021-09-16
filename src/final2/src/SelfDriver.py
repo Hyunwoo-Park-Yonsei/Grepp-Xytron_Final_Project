@@ -80,6 +80,10 @@ class SelfDriver:
         self.cat_detect_history = []
         self.people_detect_history = []
 
+		self.parallel_parking_state = 0 
+		self.parallel_parking_last_time = 0 
+		self.parallel_distance_right_history = []
+
         pkl_file_name = "2021-09-14-pose_2-sampled-300.pkl"
         absolute_path = os.path.abspath(__file__)
         file_directory = os.path.dirname(absolute_path)
@@ -419,35 +423,58 @@ class SelfDriver:
                 steer =20
 
 
+        elif self.driving_state == 15 
+			if self.sensor_data.ultra is None:
+				speed = 10
 
+			else:
+                len_history = 5
 
-        elif self.driving_state == 15 and self.sensor_data.ultra != None:
-            if self.sensor_data.ultra[0] > 50:
-                self.parallel_count += 1
-            elif self.sensor_data.ultra[0] > 20:
-                self.parallel_count = 0
-            if self.parallel_count > 4:
-                self.driving_state = 16
-                self.start_time = time.time()
+				distance_right = self.sensor_data.ultra[4]
+				distance_right_back = self.sensor_data.ultra[5]
+				self.parallel_distance_right_history.append(distance_right)
+				self.parallel_distance_right_history = self.parallel_distance_right_history[-len_history:]
 
-        elif self.driving_state == 16:
-            if time.time() - self.start_time < 3.5:
-                speed = 15
-                steer = 0
-            elif time.time() - self.start_time < 5:
-                speed =-20
-                steer = 50
-            elif time.time() - self.start_time < 6:
-                speed = -20
-                steer = 0
-            elif time.time() - self.start_time < 7.5:
-                speed = -20
-                steer = -50
-            else:
-                self.driving_state = 17
-        elif self.driving_state == 17:
-            speed = 0
-            steer = 0
+				rights_over_50 = filter(lambda x: x>50, self.parallel_distance_right_history)
+
+                if self.parallel_parking_state == 0:
+					# if recent every five right distance values are all over 50 cm 
+					# and right_back_distance is over 50 cm
+					# try parking
+
+					if len(rights_over_50) == len_history and distance_right_back > 50:
+						# test this condition can be reached
+						speed = 0
+						self.parallel_parking_state = 1
+						self.parallel_parking_last_time = time.time()
+
+				elif self.parallel_parking_state == 1:
+					now = time.time()
+					time_delta = now - self.parallel_parking_last_time
+
+					if time_delta < 1.5:
+						# drive to the right back
+						speed = -20
+						steer = 50
+
+					elif time_delta < 2.5:
+						# drive straight back
+						speed = -20
+						steer = 0
+
+					elif time_delta < 4:
+						# drive to the left back
+						speed = -20
+						steer = -50
+
+					else:
+						self.parallel_parking_state = 2
+
+				elif self.parallel_parking_state == 2:
+					# all mission are copleted!
+					speed = 0
+					steer = 0
+						
 
 
         self.display_board = cv2.line(self.display_board,(self.last_center,445),(self.last_center,445),(255,0,0),30)
